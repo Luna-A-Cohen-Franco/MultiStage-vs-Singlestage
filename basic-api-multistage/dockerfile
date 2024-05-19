@@ -1,0 +1,38 @@
+FROM node:18-alpine AS builder
+WORKDIR /app
+
+#Install all dependencies
+COPY package.json package-lock.json ./
+RUN npm install
+
+#Copy config and src
+COPY jsconfig.json next.config.mjs ./
+COPY src ./src
+
+#Build the app
+RUN npm run build
+
+FROM node:18-alpine AS runner
+ENV NODE_ENV=production
+WORKDIR /app
+
+#Config files
+COPY --from=builder /app/jsconfig.json ./
+COPY --from=builder /app/next.config.mjs ./
+
+#Built app
+COPY --from=builder /app/.next ./.next
+
+#Src
+COPY --from=builder /app/src ./src
+
+#Package files
+COPY --from=builder /app/package.json ./
+COPY --from=builder /app/package-lock.json ./
+
+#Install production dependencies only
+RUN npm install --omit=optional
+
+EXPOSE 3000
+
+CMD ["npm", "start"]
